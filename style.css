@@ -139,7 +139,8 @@
     flex-direction: column !important;
     align-items: stretch !important;
     padding: 8px 10px !important;
-    margin: 0 !important;
+    margin: 0 0 4px 0 !important;
+    /* Spacing between chats */
     border: none !important;
     border-radius: 6px !important;
     background: transparent !important;
@@ -149,6 +150,17 @@
     box-sizing: border-box !important;
     /* Ensure text wraps nicely */
     white-space: normal !important;
+    position: relative !important;
+    /* For absolute positioning of buttons if needed */
+}
+
+/* Ensure action buttons (right side) are aligned properly */
+.tmc_proxy_block.select_chat_block .select_chat_block_buttons {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    margin-left: auto !important;
+    /* Push to right if in flex row, or ensure float */
 }
 
 .tmc_proxy_block.select_chat_block:hover {
