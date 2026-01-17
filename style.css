@@ -1,6 +1,6 @@
 /**
- * Too Many Chats - Styles v1.5.0 (UI Overhaul)
- * Uses SillyTavern's native CSS variables and classes
+ * Too Many Chats - Styles v1.6.0
+ * Uses SillyTavern's native CSS variables
  */
 
 /* Root Container */
@@ -9,17 +9,15 @@
     flex-direction: column;
     gap: 4px;
     width: 100%;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
-/* Folder Rows */
-.tmc_folder_row {
+/* Section (Folder Row) */
+.tmc_section {
     border: 1px solid var(--SmartThemeBorderColor);
     background: var(--SmartThemeBlurTintColor);
-    border-radius: var(--minibar-button-border-radius, 10px);
-    margin-bottom: 4px;
+    border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* Header */
@@ -29,37 +27,45 @@
     justify-content: space-between;
     padding: 8px 12px;
     background: var(--SmartThemeInputColor);
-    /* Often lighter/different than bg */
     cursor: pointer;
     user-select: none;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--SmartThemeBodyColor);
-    transition: background 0.2s;
+    transition: background 0.15s;
 }
 
 .tmc_header:hover {
     background: var(--SmartThemeUpperBarColor);
-    /* Hover effect */
 }
 
-/* Main Clickable Area */
-.tmc_header_main {
+.tmc_header_left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex: 1;
+}
+
+.tmc_header_right {
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.tmc_header:hover .tmc_header_right {
+    opacity: 1;
 }
 
 .tmc_toggle {
     font-family: monospace;
-    width: 16px;
-    text-align: center;
+    font-size: 10px;
+    width: 12px;
     color: var(--SmartThemeBodyColor);
     opacity: 0.7;
 }
 
 .tmc_icon {
-    font-size: 16px;
+    font-size: 14px;
 }
 
 .tmc_name {
@@ -76,21 +82,9 @@
     opacity: 0.8;
 }
 
-/* Actions */
-.tmc_actions {
-    display: flex;
-    gap: 8px;
-    opacity: 0.4;
-    transition: opacity 0.2s;
-}
-
-.tmc_header:hover .tmc_actions {
-    opacity: 1;
-}
-
 .tmc_btn {
     padding: 4px 6px;
-    font-size: 12px;
+    font-size: 11px;
     border-radius: 4px;
     cursor: pointer;
     color: var(--SmartThemeBodyColor);
@@ -103,18 +97,15 @@
 
 .tmc_del:hover {
     color: #ff6b6b;
-    /* Warn color */
 }
 
-/* Content Area */
+/* Content */
 .tmc_content {
     display: flex;
     flex-direction: column;
-    padding: 0;
     background: rgba(0, 0, 0, 0.1);
 }
 
-/* Chat Blocks Override */
 .tmc_content .select_chat_block {
     margin: 0 !important;
     width: 100% !important;
@@ -123,7 +114,6 @@
     border-radius: 0 !important;
     padding: 10px 14px !important;
     background: transparent !important;
-    transition: background 0.15s;
 }
 
 .tmc_content .select_chat_block:hover {
@@ -138,8 +128,7 @@
 .tmc_uncat {
     border: none;
     background: transparent;
-    box-shadow: none;
-    margin-top: 10px;
+    margin-top: 8px;
 }
 
 .tmc_uncat .tmc_header {
@@ -152,16 +141,15 @@
     opacity: 1;
 }
 
-/* Context Menu - Use standard dropdown styles */
+/* Context Menu */
 .tmc_ctx {
     position: fixed;
     background: var(--SmartThemeBlurTintColor);
     border: 1px solid var(--SmartThemeBorderColor);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
     z-index: 20002;
-    /* Above everything */
     min-width: 180px;
-    border-radius: var(--minibar-button-border-radius, 8px);
+    border-radius: 8px;
     overflow: hidden;
     backdrop-filter: blur(10px);
 }
@@ -184,7 +172,6 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    transition: background 0.15s;
 }
 
 .tmc_ctx_item:hover {
@@ -195,15 +182,13 @@
 .tmc_ctx_sep {
     height: 1px;
     background: var(--SmartThemeBorderColor);
-    margin: 0;
 }
 
 .tmc_new {
     color: #4cd137;
-    /* Success color */
 }
 
-/* Add Button in Popup - Match menu_button */
+/* Add Button */
 .tmc_add_btn {
     font-size: 16px;
     cursor: pointer;
