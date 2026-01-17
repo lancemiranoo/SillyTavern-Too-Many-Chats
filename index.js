@@ -213,7 +213,8 @@
                     element: block,
                     fileName,
                     title: extractChatTitle(fileName),
-                    date: formatDate(dateStr)
+                    date: formatDate(dateStr),
+                    html: block.innerHTML // Full native content with buttons
                 };
             }).filter(d => d.fileName);
 
@@ -364,19 +365,28 @@
         return section;
     }
 
-    // COMPACT proxy block - just title + date
+    // Proxy block with FULL native content (buttons, preview, etc.)
     function createProxyBlock(chatData) {
         const el = document.createElement('div');
-        el.className = 'tmc_proxy_block';
+        el.className = 'select_chat_block tmc_proxy_block';
 
-        // Simple title + date layout
-        el.innerHTML = `
-            <span class="tmc_chat_title">${escapeHtml(chatData.title)}</span>
-            <span class="tmc_chat_date">${chatData.date}</span>
-        `;
+        // Use full native HTML content (includes preview, buttons, etc.)
+        el.innerHTML = chatData.html;
         el.title = chatData.fileName;
+        el.setAttribute('file_name', chatData.fileName);
 
-        el.onclick = () => chatData.element.click();
+        // Intercept main click (not on buttons)
+        el.addEventListener('click', (e) => {
+            // Don't intercept if clicking on action buttons
+            if (e.target.closest('.select_chat_block_action, .mes_edit, .mes_delete, .mes_export, button, a')) {
+                // Let the native button handle it by clicking the hidden original
+                const originalBtn = chatData.element.querySelector(e.target.closest('[class]')?.className.split(' ')[0]);
+                if (originalBtn) originalBtn.click();
+                return;
+            }
+            // Otherwise load the chat
+            chatData.element.click();
+        });
 
         el.oncontextmenu = (e) => {
             e.preventDefault();

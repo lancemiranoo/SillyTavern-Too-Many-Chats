@@ -132,23 +132,23 @@
     /* Indent like ChatGPT */
 }
 
-/* Chat Item - Compact single line */
-.tmc_proxy_block {
+/* Chat Item - Full native content with buttons */
+.tmc_proxy_block.select_chat_block {
     display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    padding: 6px 10px !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    padding: 8px 10px !important;
     margin: 0 !important;
     border: none !important;
     border-radius: 6px !important;
     background: transparent !important;
     cursor: pointer !important;
     transition: background 0.1s !important;
-    min-height: auto !important;
     width: 100% !important;
+    box-sizing: border-box !important;
 }
 
-.tmc_proxy_block:hover {
+.tmc_proxy_block.select_chat_block:hover {
     background: var(--SmartThemeBlurTintColor) !important;
 }
 
