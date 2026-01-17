@@ -139,32 +139,54 @@
     flex-direction: column !important;
     align-items: stretch !important;
     padding: 8px 10px !important;
-    margin: 0 0 4px 0 !important;
+    margin: 0 0 6px 0 !important;
     /* Spacing between chats */
-    border: none !important;
+    border: 1px solid var(--SmartThemeBorderColor) !important;
+    /* BORDER ADDED */
     border-radius: 6px !important;
     background: transparent !important;
     cursor: pointer !important;
-    transition: background 0.1s !important;
+    transition: background 0.1s, border-color 0.1s !important;
     width: 100% !important;
     box-sizing: border-box !important;
     /* Ensure text wraps nicely */
     white-space: normal !important;
     position: relative !important;
-    /* For absolute positioning of buttons if needed */
+}
+
+/* First row: title/filename + ALL buttons including pencil */
+.tmc_proxy_block.select_chat_block>div:first-child,
+.tmc_proxy_block.select_chat_block .select_chat_block_header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 8px !important;
+}
+
+/* Move pencil icon to the right side with other buttons */
+.tmc_proxy_block.select_chat_block .mes_edit,
+.tmc_proxy_block.select_chat_block .select_chat_block_rename,
+.tmc_proxy_block.select_chat_block [class*="rename"],
+.tmc_proxy_block.select_chat_block [class*="edit"]:not(.select_chat_block) {
+    order: 99 !important;
+    /* Push to end */
+    margin-left: 4px !important;
 }
 
 /* Ensure action buttons (right side) are aligned properly */
-.tmc_proxy_block.select_chat_block .select_chat_block_buttons {
+.tmc_proxy_block.select_chat_block .select_chat_block_buttons,
+.tmc_proxy_block.select_chat_block .select_chat_block_action {
     display: flex !important;
     align-items: center !important;
     gap: 4px !important;
     margin-left: auto !important;
-    /* Push to right if in flex row, or ensure float */
+    flex-shrink: 0 !important;
 }
 
 .tmc_proxy_block.select_chat_block:hover {
     background: var(--SmartThemeBlurTintColor) !important;
+    border-color: var(--SmartThemeQuoteColor) !important;
 }
 
 /* Chat title */

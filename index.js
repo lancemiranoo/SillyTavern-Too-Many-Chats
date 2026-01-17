@@ -443,7 +443,7 @@
         });
         html += '<div class="tmc_ctx_sep"></div>';
         html += '<div class="tmc_ctx_item" data-fid="uncategorized">💬 Your chats</div>';
-        html += '<div class="tmc_ctx_item tmc_new">➕ New Folder</div>';
+        // New Folder button is now in the header, removed from here
 
         menu.innerHTML = html;
         document.body.appendChild(menu);
@@ -451,12 +451,8 @@
         menu.onclick = (ev) => {
             const item = ev.target.closest('.tmc_ctx_item');
             if (!item) return;
-            if (item.classList.contains('tmc_new')) {
-                const name = prompt('Folder Name:');
-                if (name) createFolder(name);
-            } else {
-                moveChat(fileName, item.dataset.fid);
-            }
+            // Only "Move to folder" actions remain
+            moveChat(fileName, item.dataset.fid);
             menu.remove();
         };
 
