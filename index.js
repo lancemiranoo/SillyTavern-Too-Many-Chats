@@ -1,23 +1,32 @@
 /**
- * Chat Folders Extension for SillyTavern
+ * Too Many Chats - SillyTavern Extension
  * Organizes chats per character into collapsible folders
  * Integrates directly into the Chat History panel
  * @author chaaruze
- * @version 1.1.0
+ * @version 1.1.1
  */
 
 (function () {
     'use strict';
 
     const MODULE_NAME = 'chat_folders';
-    const EXTENSION_NAME = 'Chat Folders';
+    const EXTENSION_NAME = 'Too Many Chats';
 
     // Default settings structure
     const defaultSettings = Object.freeze({
         folders: {},           // { folderId: { name, chats[], collapsed, order } }
         characterFolders: {},  // { characterAvatar: [folderIds] }
-        version: '1.1.0'
+        version: '1.1.1'
     });
+
+    // Debounce helper
+    function debounce(fn, delay) {
+        let timeout;
+        return function (...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
 
     // Get extension settings
     function getSettings() {
@@ -28,7 +37,6 @@
             extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
         }
 
-        // Migration: ensure all keys exist
         for (const key of Object.keys(defaultSettings)) {
             if (!Object.hasOwn(extensionSettings[MODULE_NAME], key)) {
                 extensionSettings[MODULE_NAME][key] = structuredClone(defaultSettings[key]);
@@ -38,18 +46,15 @@
         return extensionSettings[MODULE_NAME];
     }
 
-    // Save settings
     function saveSettings() {
         const context = SillyTavern.getContext();
         context.saveSettingsDebounced();
     }
 
-    // Generate unique ID
     function generateId() {
         return 'folder_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
-    // Get current character identifier
     function getCurrentCharacterId() {
         const context = SillyTavern.getContext();
         if (context.characterId !== undefined && context.characters[context.characterId]) {
@@ -116,7 +121,7 @@
         if (settings.folders[folderId]) {
             settings.folders[folderId].collapsed = !settings.folders[folderId].collapsed;
             saveSettings();
-            injectFoldersIntoChatHistory();
+            applyFolderVisibility();
         }
     }
 
@@ -125,7 +130,6 @@
         const characterId = getCurrentCharacterId();
         if (!characterId) return;
 
-        // Remove from all existing folders for this character
         const charFolderIds = settings.characterFolders[characterId] || [];
         for (const fid of charFolderIds) {
             if (settings.folders[fid] && settings.folders[fid].chats) {
@@ -136,7 +140,6 @@
             }
         }
 
-        // Add to target folder (if not 'uncategorized')
         if (targetFolderId && targetFolderId !== 'uncategorized' && settings.folders[targetFolderId]) {
             if (!settings.folders[targetFolderId].chats) {
                 settings.folders[targetFolderId].chats = [];
@@ -145,7 +148,7 @@
         }
 
         saveSettings();
-        injectFoldersIntoChatHistory();
+        rebuildFolderUI();
     }
 
     function getFoldersForCurrentCharacter() {
@@ -174,269 +177,295 @@
         return null;
     }
 
-    // ========== CHAT HISTORY PANEL INTEGRATION ==========
+    // ========== UI BUILDING ==========
 
-    function injectFoldersIntoChatHistory() {
-        // Find the Chat History popup/panel
-        const chatHistoryPopup = document.querySelector('#select_chat_popup');
-        if (!chatHistoryPopup) return;
+    let isBuilding = false;
 
-        const chatList = chatHistoryPopup.querySelector('#select_chat_search ~ div, .select_chat_block')?.parentElement;
-        if (!chatList) return;
+    function rebuildFolderUI() {
+        if (isBuilding) return;
+        isBuilding = true;
 
-        // Get all chat blocks
-        const chatBlocks = Array.from(chatHistoryPopup.querySelectorAll('.select_chat_block'));
-        if (chatBlocks.length === 0) return;
-
-        const characterId = getCurrentCharacterId();
-        if (!characterId) return;
-
-        const folders = getFoldersForCurrentCharacter();
-
-        // Remove previous folder injections
-        chatHistoryPopup.querySelectorAll('.chat_folder_section').forEach(el => el.remove());
-
-        // Show all chat blocks first (reset)
-        chatBlocks.forEach(block => {
-            block.style.display = '';
-            block.classList.remove('chat_in_folder');
-        });
-
-        // If no folders, just attach context menus and return
-        if (folders.length === 0) {
-            attachContextMenusToChatBlocks(chatBlocks);
-            return;
-        }
-
-        // Build chat file to element map
-        const chatMap = new Map();
-        chatBlocks.forEach(block => {
-            const fileName = block.getAttribute('file_name');
-            if (fileName) {
-                chatMap.set(fileName, block);
-            }
-        });
-
-        // Find the container for chat blocks
-        const chatContainer = chatBlocks[0]?.parentElement;
-        if (!chatContainer) return;
-
-        // Track assigned chats
-        const assignedChats = new Set();
-
-        // Create folder sections
-        folders.forEach(folder => {
-            const section = document.createElement('div');
-            section.className = 'chat_folder_section';
-            section.dataset.folderId = folder.id;
-
-            // Folder header
-            const header = document.createElement('div');
-            header.className = 'chat_folder_header';
-            header.innerHTML = `
-                <i class="fa-solid fa-chevron-${folder.collapsed ? 'right' : 'down'} chat_folder_toggle"></i>
-                <i class="fa-solid fa-folder${folder.collapsed ? '' : '-open'} chat_folder_icon"></i>
-                <span class="chat_folder_name">${escapeHtml(folder.name)}</span>
-                <span class="chat_folder_badge">${folder.chats?.length || 0}</span>
-                <div class="chat_folder_actions">
-                    <i class="fa-solid fa-pen chat_folder_edit" title="Rename"></i>
-                    <i class="fa-solid fa-trash chat_folder_delete" title="Delete"></i>
-                </div>
-            `;
-
-            // Click to collapse/expand
-            header.addEventListener('click', (e) => {
-                if (!e.target.classList.contains('chat_folder_edit') &&
-                    !e.target.classList.contains('chat_folder_delete')) {
-                    toggleFolderCollapse(folder.id);
-                }
-            });
-
-            // Rename handler
-            header.querySelector('.chat_folder_edit').addEventListener('click', (e) => {
-                e.stopPropagation();
-                const newName = prompt('Rename folder:', folder.name);
-                if (newName && newName.trim()) {
-                    renameFolder(folder.id, newName.trim());
-                    injectFoldersIntoChatHistory();
-                }
-            });
-
-            // Delete handler
-            header.querySelector('.chat_folder_delete').addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (confirm(`Delete folder "${folder.name}"? Chats will become uncategorized.`)) {
-                    deleteFolder(folder.id);
-                    injectFoldersIntoChatHistory();
-                }
-            });
-
-            section.appendChild(header);
-
-            // Folder content (chats)
-            const content = document.createElement('div');
-            content.className = 'chat_folder_content';
-            if (folder.collapsed) {
-                content.classList.add('collapsed');
+        try {
+            const popup = document.querySelector('#shadow_select_chat_popup, #select_chat_popup, [id*="select_chat"]');
+            if (!popup) {
+                isBuilding = false;
+                return;
             }
 
-            // Move matching chats into this folder
-            (folder.chats || []).forEach(chatFile => {
-                const chatBlock = chatMap.get(chatFile);
-                if (chatBlock) {
-                    assignedChats.add(chatFile);
-                    chatBlock.classList.add('chat_in_folder');
-                    content.appendChild(chatBlock);
+            // Find all chat blocks - they have file_name attribute
+            const allChatBlocks = Array.from(popup.querySelectorAll('[file_name]'));
+            if (allChatBlocks.length === 0) {
+                isBuilding = false;
+                return;
+            }
+
+            const characterId = getCurrentCharacterId();
+            if (!characterId) {
+                isBuilding = false;
+                return;
+            }
+
+            const folders = getFoldersForCurrentCharacter();
+
+            // Remove any existing folder UI we created
+            popup.querySelectorAll('.tmc_folder_section, .tmc_manage_btn').forEach(el => el.remove());
+
+            // Reset all chat blocks to visible
+            allChatBlocks.forEach(block => {
+                block.style.display = '';
+                block.removeAttribute('data-tmc-folder');
+            });
+
+            // If no folders, just add context menus
+            if (folders.length === 0) {
+                addContextMenus(allChatBlocks);
+                addManageButton(popup);
+                isBuilding = false;
+                return;
+            }
+
+            // Find the parent container of chat blocks
+            const container = allChatBlocks[0].parentElement;
+            if (!container) {
+                isBuilding = false;
+                return;
+            }
+
+            // Build chat filename → block map
+            const chatMap = new Map();
+            allChatBlocks.forEach(block => {
+                const fileName = block.getAttribute('file_name');
+                if (fileName) {
+                    chatMap.set(fileName, block);
                 }
             });
 
-            section.appendChild(content);
-            chatContainer.prepend(section);
-        });
+            // Track which chats are assigned
+            const assignedChats = new Set();
 
-        // Create "Uncategorized" section for remaining chats
-        const uncategorizedBlocks = chatBlocks.filter(block => {
-            const fileName = block.getAttribute('file_name');
-            return fileName && !assignedChats.has(fileName);
-        });
+            // Create folder sections (inserted at top)
+            const folderFragment = document.createDocumentFragment();
 
-        if (uncategorizedBlocks.length > 0) {
-            const uncatSection = document.createElement('div');
-            uncatSection.className = 'chat_folder_section chat_folder_uncategorized';
+            folders.forEach(folder => {
+                const section = document.createElement('div');
+                section.className = 'tmc_folder_section';
+                section.dataset.folderId = folder.id;
 
-            const uncatHeader = document.createElement('div');
-            uncatHeader.className = 'chat_folder_header';
-            uncatHeader.innerHTML = `
-                <i class="fa-regular fa-file-lines chat_folder_icon"></i>
-                <span class="chat_folder_name">Uncategorized</span>
-                <span class="chat_folder_badge">${uncategorizedBlocks.length}</span>
-            `;
+                const header = document.createElement('div');
+                header.className = 'tmc_folder_header';
+                header.innerHTML = `
+                    <span class="tmc_folder_toggle">${folder.collapsed ? '▶' : '▼'}</span>
+                    <span class="tmc_folder_icon">📁</span>
+                    <span class="tmc_folder_name">${escapeHtml(folder.name)}</span>
+                    <span class="tmc_folder_count">${folder.chats?.length || 0}</span>
+                    <span class="tmc_folder_actions">
+                        <span class="tmc_action_edit" title="Rename">✏️</span>
+                        <span class="tmc_action_delete" title="Delete">🗑️</span>
+                    </span>
+                `;
 
-            uncatSection.appendChild(uncatHeader);
-
-            const uncatContent = document.createElement('div');
-            uncatContent.className = 'chat_folder_content';
-            uncategorizedBlocks.forEach(block => {
-                block.classList.add('chat_in_folder');
-                uncatContent.appendChild(block);
-            });
-
-            uncatSection.appendChild(uncatContent);
-            chatContainer.appendChild(uncatSection);
-        }
-
-        // Attach context menus
-        attachContextMenusToChatBlocks(chatBlocks);
-    }
-
-    function attachContextMenusToChatBlocks(chatBlocks) {
-        chatBlocks.forEach(block => {
-            // Remove old listener if exists
-            block.removeEventListener('contextmenu', handleChatContextMenu);
-            block.addEventListener('contextmenu', handleChatContextMenu);
-        });
-    }
-
-    function handleChatContextMenu(e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const chatFile = this.getAttribute('file_name');
-        if (!chatFile) return;
-
-        // Remove existing context menu
-        const existing = document.getElementById('chat_folders_context_menu');
-        if (existing) existing.remove();
-
-        const folders = getFoldersForCurrentCharacter();
-        const currentFolder = getChatFolder(chatFile);
-
-        const menu = document.createElement('div');
-        menu.id = 'chat_folders_context_menu';
-        menu.className = 'chat_folders_context_menu';
-        menu.style.left = e.pageX + 'px';
-        menu.style.top = e.pageY + 'px';
-
-        menu.innerHTML = `
-            <div class="chat_folders_context_header">Move to folder:</div>
-            ${folders.map(f => `
-                <div class="chat_folders_context_item ${currentFolder === f.id ? 'active' : ''}" data-folder-id="${f.id}">
-                    <i class="fa-solid fa-folder"></i> ${escapeHtml(f.name)}
-                </div>
-            `).join('')}
-            <div class="chat_folders_context_divider"></div>
-            <div class="chat_folders_context_item ${!currentFolder ? 'active' : ''}" data-folder-id="uncategorized">
-                <i class="fa-regular fa-file-lines"></i> Uncategorized
-            </div>
-            <div class="chat_folders_context_divider"></div>
-            <div class="chat_folders_context_item chat_folders_context_new">
-                <i class="fa-solid fa-folder-plus"></i> New Folder...
-            </div>
-        `;
-
-        document.body.appendChild(menu);
-
-        // Handle menu item clicks
-        menu.querySelectorAll('.chat_folders_context_item').forEach(item => {
-            item.addEventListener('click', () => {
-                const targetFolder = item.dataset.folderId;
-                if (item.classList.contains('chat_folders_context_new')) {
-                    const name = prompt('New folder name:');
-                    if (name && name.trim()) {
-                        const newFolderId = createFolder(name.trim());
-                        if (newFolderId) {
-                            moveChatToFolder(chatFile, newFolderId);
-                        }
+                header.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('tmc_action_edit') ||
+                        e.target.classList.contains('tmc_action_delete')) {
+                        return;
                     }
-                } else {
-                    moveChatToFolder(chatFile, targetFolder);
-                }
-                menu.remove();
-            });
-        });
+                    toggleFolderCollapse(folder.id);
+                });
 
-        // Close menu on click outside
-        setTimeout(() => {
-            document.addEventListener('click', function closeMenu(e) {
-                if (!menu.contains(e.target)) {
-                    menu.remove();
-                    document.removeEventListener('click', closeMenu);
+                header.querySelector('.tmc_action_edit').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const newName = prompt('Rename folder:', folder.name);
+                    if (newName && newName.trim()) {
+                        renameFolder(folder.id, newName.trim());
+                        rebuildFolderUI();
+                    }
+                });
+
+                header.querySelector('.tmc_action_delete').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (confirm(`Delete folder "${folder.name}"?`)) {
+                        deleteFolder(folder.id);
+                        rebuildFolderUI();
+                    }
+                });
+
+                section.appendChild(header);
+
+                const content = document.createElement('div');
+                content.className = 'tmc_folder_content';
+                if (folder.collapsed) {
+                    content.style.display = 'none';
                 }
+
+                // Move matching chats into folder
+                (folder.chats || []).forEach(chatFile => {
+                    const block = chatMap.get(chatFile);
+                    if (block) {
+                        assignedChats.add(chatFile);
+                        block.setAttribute('data-tmc-folder', folder.id);
+                        content.appendChild(block);
+                    }
+                });
+
+                section.appendChild(content);
+                folderFragment.appendChild(section);
             });
-        }, 0);
+
+            // Create uncategorized section
+            const uncategorized = allChatBlocks.filter(block => {
+                const fileName = block.getAttribute('file_name');
+                return fileName && !assignedChats.has(fileName);
+            });
+
+            if (uncategorized.length > 0) {
+                const uncatSection = document.createElement('div');
+                uncatSection.className = 'tmc_folder_section tmc_uncategorized';
+
+                const uncatHeader = document.createElement('div');
+                uncatHeader.className = 'tmc_folder_header tmc_uncat_header';
+                uncatHeader.innerHTML = `
+                    <span class="tmc_folder_icon">📄</span>
+                    <span class="tmc_folder_name">Uncategorized</span>
+                    <span class="tmc_folder_count">${uncategorized.length}</span>
+                `;
+
+                uncatSection.appendChild(uncatHeader);
+
+                const uncatContent = document.createElement('div');
+                uncatContent.className = 'tmc_folder_content';
+                uncategorized.forEach(block => {
+                    block.setAttribute('data-tmc-folder', 'uncategorized');
+                    uncatContent.appendChild(block);
+                });
+
+                uncatSection.appendChild(uncatContent);
+                folderFragment.appendChild(uncatSection);
+            }
+
+            // Insert folder structure at top of container
+            container.prepend(folderFragment);
+
+            // Add context menus and manage button
+            addContextMenus(allChatBlocks);
+            addManageButton(popup);
+
+        } finally {
+            isBuilding = false;
+        }
     }
 
-    // ========== MANAGE FOLDERS BUTTON IN HEADER ==========
+    function applyFolderVisibility() {
+        const folders = getFoldersForCurrentCharacter();
+        folders.forEach(folder => {
+            const section = document.querySelector(`.tmc_folder_section[data-folder-id="${folder.id}"]`);
+            if (section) {
+                const toggle = section.querySelector('.tmc_folder_toggle');
+                const content = section.querySelector('.tmc_folder_content');
+                if (toggle) toggle.textContent = folder.collapsed ? '▶' : '▼';
+                if (content) content.style.display = folder.collapsed ? 'none' : '';
+            }
+        });
+    }
 
-    function injectManageButton() {
-        const chatHistoryPopup = document.querySelector('#select_chat_popup');
-        if (!chatHistoryPopup) return;
+    function addManageButton(popup) {
+        if (popup.querySelector('.tmc_manage_btn')) return;
 
-        // Check if already injected
-        if (chatHistoryPopup.querySelector('#chat_folders_manage_btn')) return;
-
-        // Find the header area (near "Chat History" title)
-        const header = chatHistoryPopup.querySelector('.dialogue_popup_title, h3, .popup_header');
+        const header = popup.querySelector('h3, .popup_title, .dialogue_popup_title');
         if (!header) return;
 
         const btn = document.createElement('span');
-        btn.id = 'chat_folders_manage_btn';
-        btn.className = 'chat_folders_manage_btn';
+        btn.className = 'tmc_manage_btn';
         btn.title = 'Create New Folder';
-        btn.innerHTML = `<i class="fa-solid fa-folder-plus"></i>`;
+        btn.textContent = ' 📁+';
+        btn.style.cssText = 'cursor:pointer;margin-left:8px;font-size:16px;';
 
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
             const name = prompt('New folder name:');
             if (name && name.trim()) {
                 createFolder(name.trim());
-                injectFoldersIntoChatHistory();
+                rebuildFolderUI();
             }
         });
 
         header.appendChild(btn);
     }
 
-    // ========== UTILITIES ==========
+    function addContextMenus(blocks) {
+        blocks.forEach(block => {
+            block.oncontextmenu = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                showContextMenu(e, this.getAttribute('file_name'));
+            };
+        });
+    }
+
+    function showContextMenu(e, chatFile) {
+        if (!chatFile) return;
+
+        document.querySelectorAll('.tmc_context_menu').forEach(m => m.remove());
+
+        const folders = getFoldersForCurrentCharacter();
+        const currentFolder = getChatFolder(chatFile);
+
+        const menu = document.createElement('div');
+        menu.className = 'tmc_context_menu';
+        menu.style.cssText = `
+            position:fixed;
+            left:${e.clientX}px;
+            top:${e.clientY}px;
+            background:#1a1a2e;
+            border:1px solid #444;
+            border-radius:8px;
+            padding:8px 0;
+            z-index:999999;
+            min-width:160px;
+            box-shadow:0 4px 16px rgba(0,0,0,0.5);
+        `;
+
+        let html = '<div style="padding:6px 12px;font-size:11px;color:#888;text-transform:uppercase;">Move to:</div>';
+
+        folders.forEach(f => {
+            const active = currentFolder === f.id ? 'background:rgba(255,255,255,0.1);' : '';
+            html += `<div class="tmc_ctx_item" data-folder="${f.id}" style="padding:8px 12px;cursor:pointer;color:#ccc;${active}">📁 ${escapeHtml(f.name)}${currentFolder === f.id ? ' ✓' : ''}</div>`;
+        });
+
+        html += '<div style="height:1px;background:#333;margin:4px 0;"></div>';
+        const uncatActive = !currentFolder ? 'background:rgba(255,255,255,0.1);' : '';
+        html += `<div class="tmc_ctx_item" data-folder="uncategorized" style="padding:8px 12px;cursor:pointer;color:#ccc;${uncatActive}">📄 Uncategorized${!currentFolder ? ' ✓' : ''}</div>`;
+        html += '<div style="height:1px;background:#333;margin:4px 0;"></div>';
+        html += '<div class="tmc_ctx_item tmc_ctx_new" style="padding:8px 12px;cursor:pointer;color:#888;">📁+ New Folder...</div>';
+
+        menu.innerHTML = html;
+        document.body.appendChild(menu);
+
+        menu.querySelectorAll('.tmc_ctx_item').forEach(item => {
+            item.addEventListener('mouseenter', () => item.style.background = 'rgba(255,255,255,0.08)');
+            item.addEventListener('mouseleave', () => item.style.background = '');
+            item.addEventListener('click', () => {
+                if (item.classList.contains('tmc_ctx_new')) {
+                    const name = prompt('New folder name:');
+                    if (name && name.trim()) {
+                        const newId = createFolder(name.trim());
+                        if (newId) moveChatToFolder(chatFile, newId);
+                    }
+                } else {
+                    moveChatToFolder(chatFile, item.dataset.folder);
+                }
+                menu.remove();
+            });
+        });
+
+        setTimeout(() => {
+            document.addEventListener('click', function close(ev) {
+                if (!menu.contains(ev.target)) {
+                    menu.remove();
+                    document.removeEventListener('click', close);
+                }
+            });
+        }, 0);
+    }
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -444,21 +473,23 @@
         return div.innerHTML;
     }
 
-    // ========== MUTATION OBSERVER ==========
+    // ========== OBSERVER & INITIALIZATION ==========
+
+    const debouncedRebuild = debounce(rebuildFolderUI, 300);
 
     function setupObserver() {
         const observer = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
-                for (const node of mutation.addedNodes) {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        // Check if Chat History popup appeared
-                        if (node.id === 'select_chat_popup' || node.querySelector?.('#select_chat_popup')) {
-                            setTimeout(() => {
-                                injectManageButton();
-                                injectFoldersIntoChatHistory();
-                            }, 100);
-                        }
-                    }
+                // Check if chat popup appeared or its content changed
+                const isRelevant = mutation.target.id?.includes('select_chat') ||
+                    mutation.target.closest?.('#select_chat_popup, #shadow_select_chat_popup') ||
+                    Array.from(mutation.addedNodes).some(n =>
+                        n.nodeType === 1 && (n.id?.includes('select_chat') || n.querySelector?.('[file_name]'))
+                    );
+
+                if (isRelevant && !isBuilding) {
+                    debouncedRebuild();
+                    break;
                 }
             }
         });
@@ -466,33 +497,22 @@
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    // ========== INITIALIZATION ==========
-
     async function init() {
         const context = SillyTavern.getContext();
         const { eventSource, event_types } = context;
 
-        // Initialize settings
         getSettings();
-
-        // Setup mutation observer to catch when Chat History opens
         setupObserver();
 
-        // Listen for chat changes
         eventSource.on(event_types.CHAT_CHANGED, () => {
-            setTimeout(injectFoldersIntoChatHistory, 200);
+            setTimeout(debouncedRebuild, 300);
         });
 
-        // Initial check
-        setTimeout(() => {
-            injectManageButton();
-            injectFoldersIntoChatHistory();
-        }, 500);
+        setTimeout(rebuildFolderUI, 1000);
 
-        console.log(`[${EXTENSION_NAME}] v1.1.0 loaded - Chat History integration ready!`);
+        console.log(`[${EXTENSION_NAME}] v1.1.1 loaded!`);
     }
 
-    // Wait for app to be ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
