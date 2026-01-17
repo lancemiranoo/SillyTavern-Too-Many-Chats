@@ -1,7 +1,7 @@
 /**
  * Too Many Chats - SillyTavern Extension
  * Organizes chats per character into collapsible folders
- * v2.0.1 - Robust Matching Fix
+ * v2.0.2 - UI Tweaks: Scroll & Search Bar
  * @author chaaruze
  * @version 2.0.1
  */
@@ -15,7 +15,7 @@
     const defaultSettings = Object.freeze({
         folders: {},
         characterFolders: {},
-        version: '2.0.1'
+        version: '2.0.2'
     });
 
     let observer = null;
@@ -208,16 +208,24 @@
                 proxyRoot = document.createElement('div');
                 proxyRoot.id = 'tmc_proxy_root';
 
-                // CRITICAL FIX: Insert at the top of the container that holds the wrappers.
-                // We find the first wrapper to identify the parent.
-                const firstWrapper = popup.querySelector('.select_chat_block_wrapper');
-                const container = firstWrapper ? firstWrapper.parentNode : popup.querySelector('.shadow_select_chat_popup_body') || popup;
+                // Find the body container for chat list
+                const body = popup.querySelector('.shadow_select_chat_popup_body') || popup;
 
-                if (container) {
-                    // Try to put it after the search bar if possible?
-                    // Search bar is usually in header or separate. 
-                    // Wrappers are in body.
-                    container.insertBefore(proxyRoot, container.firstChild);
+                // Insert after any existing header/search elements
+                // The search bar is typically in the header or a separate div
+                const searchBar = popup.querySelector('input[type="search"], input[type="text"], .search_input');
+
+                if (searchBar && searchBar.parentNode) {
+                    // Insert after search bar's container
+                    const searchContainer = searchBar.closest('.shadow_select_chat_popup_header') || searchBar.parentNode;
+                    if (searchContainer.nextSibling) {
+                        searchContainer.parentNode.insertBefore(proxyRoot, searchContainer.nextSibling);
+                    } else {
+                        searchContainer.parentNode.appendChild(proxyRoot);
+                    }
+                } else {
+                    // Fallback: insert at top of body
+                    body.insertBefore(proxyRoot, body.firstChild);
                 }
             }
 

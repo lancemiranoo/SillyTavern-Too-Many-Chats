@@ -13,15 +13,21 @@
     display: none !important;
 }
 
-/* Our Proxy Root - Ensure it is visible */
+/* Our Proxy Root - Ensure it is visible and scrollable */
 #tmc_proxy_root {
     display: flex;
     flex-direction: column;
     gap: 4px;
     width: 100%;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     min-height: 50px;
-    /* Ensure drop target area exists */
+    max-height: 60vh;
+    /* Limit height so it doesn't overflow popup */
+    overflow-y: auto;
+    /* Enable vertical scrolling */
+    overflow-x: hidden;
+    padding-right: 4px;
+    /* Space for scrollbar */
 }
 
 /* Section (Folder Row) */
