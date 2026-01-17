@@ -1,64 +1,53 @@
 /**
- * Too Many Chats - Styles v2.0.0
- * Uses SillyTavern's native CSS variables
+ * Too Many Chats - Styles v2.1.0
+ * ChatGPT-inspired clean layout with SillyTavern theme integration
  */
 
-/* 
-   CRITICAL: Hide the native chat list wrapper.
-   We use !important to ensure we override ST's own styles.
-   We keep it in the DOM so we can read from it, but user sees our Proxy UI.
-*/
+/* Hide native chat list */
 #select_chat_popup .select_chat_block_wrapper,
 #shadow_select_chat_popup .select_chat_block_wrapper {
     display: none !important;
 }
 
-/* Our Proxy Root - Ensure it is visible and scrollable */
+/* Proxy Root - Scrollable container */
 #tmc_proxy_root {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     width: 100%;
-    margin-bottom: 10px;
-    min-height: 50px;
-    max-height: 60vh;
-    /* Limit height so it doesn't overflow popup */
+    max-height: 55vh;
     overflow-y: auto;
-    /* Enable vertical scrolling */
     overflow-x: hidden;
-    padding-right: 4px;
-    /* Space for scrollbar */
+    padding: 4px 0;
 }
 
-/* Section (Folder Row) */
+/* ========== FOLDER SECTION ========== */
 .tmc_section {
-    border: 1px solid var(--SmartThemeBorderColor);
-    background: var(--SmartThemeBlurTintColor);
-    border-radius: 8px;
-    /* CRITICAL FIX: Remove overflow:hidden to allow parent scroll detection */
-    overflow: visible;
-    margin-bottom: 4px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    /* Prevent flex from squeezing sections */
+    /* Clean, minimal - no heavy borders */
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    margin-bottom: 2px;
     flex-shrink: 0;
 }
 
-/* Header */
+/* Folder Header - Minimal ChatGPT style */
 .tmc_header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
-    background: var(--SmartThemeInputColor);
+    padding: 6px 8px;
+    background: transparent;
     cursor: pointer;
     user-select: none;
     font-size: 13px;
     color: var(--SmartThemeBodyColor);
-    transition: background 0.15s;
+    border-radius: 6px;
+    transition: background 0.1s;
 }
 
 .tmc_header:hover {
-    background: var(--SmartThemeUpperBarColor);
+    background: var(--SmartThemeBlurTintColor);
 }
 
 .tmc_header_left {
@@ -66,12 +55,14 @@
     align-items: center;
     gap: 8px;
     flex: 1;
+    min-width: 0;
+    /* Allow text truncation */
 }
 
 .tmc_header_right {
     display: flex;
-    gap: 6px;
-    opacity: 0.4;
+    gap: 4px;
+    opacity: 0;
     transition: opacity 0.15s;
 }
 
@@ -79,124 +70,149 @@
     opacity: 1;
 }
 
+/* Chevron toggle */
 .tmc_toggle {
-    font-family: monospace;
+    font-family: system-ui, sans-serif;
     font-size: 10px;
-    width: 14px;
+    width: 12px;
     color: var(--SmartThemeBodyColor);
-    opacity: 0.7;
+    opacity: 0.5;
+    transition: transform 0.15s;
+}
+
+.tmc_section[data-collapsed="true"] .tmc_toggle {
+    transform: rotate(-90deg);
 }
 
 .tmc_icon {
-    font-size: 16px;
-}
-
-.tmc_name {
-    font-weight: 600;
-    color: var(--SmartThemeHeaderColor);
-}
-
-.tmc_count {
-    font-size: 10px;
-    background: var(--SmartThemeBorderColor);
-    padding: 2px 8px;
-    border-radius: 10px;
-    color: var(--SmartThemeBodyColor);
+    font-size: 14px;
     opacity: 0.8;
 }
 
+.tmc_name {
+    font-weight: 500;
+    color: var(--SmartThemeBodyColor);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Count badge - subtle */
+.tmc_count {
+    font-size: 11px;
+    color: var(--SmartThemeBodyColor);
+    opacity: 0.5;
+    margin-left: 4px;
+}
+
+/* Action buttons */
 .tmc_btn {
-    padding: 4px 6px;
-    font-size: 12px;
+    padding: 4px;
+    font-size: 11px;
     border-radius: 4px;
     cursor: pointer;
     color: var(--SmartThemeBodyColor);
+    opacity: 0.6;
 }
 
 .tmc_btn:hover {
+    opacity: 1;
     background: var(--SmartThemeBorderColor);
-    color: var(--SmartThemeQuoteColor);
 }
 
 .tmc_del:hover {
     color: #ff6b6b;
 }
 
-/* Content */
+/* ========== CHAT CONTENT ========== */
 .tmc_content {
     display: flex;
     flex-direction: column;
-    background: rgba(0, 0, 0, 0.1);
+    padding-left: 20px;
+    /* Indent like ChatGPT */
 }
 
-/* Proxy Chat Block Styling (Mimic native ST block) */
-.tmc_proxy_block.select_chat_block {
+/* Chat Item - Compact single line */
+.tmc_proxy_block {
     display: flex !important;
     align-items: center !important;
-    gap: 10px !important;
+    justify-content: space-between !important;
+    padding: 6px 10px !important;
     margin: 0 !important;
-    width: 100% !important;
     border: none !important;
-    border-bottom: 1px solid var(--SmartThemeBorderColor) !important;
-    border-radius: 0 !important;
-    padding: 10px 14px !important;
+    border-radius: 6px !important;
     background: transparent !important;
     cursor: pointer !important;
-    transition: background 0.15s !important;
-    min-height: 48px;
+    transition: background 0.1s !important;
+    min-height: auto !important;
+    width: 100% !important;
 }
 
-.tmc_proxy_block.select_chat_block:hover {
-    background: var(--SmartThemeUpperBarColor) !important;
+.tmc_proxy_block:hover {
+    background: var(--SmartThemeBlurTintColor) !important;
 }
 
-.tmc_proxy_block.select_chat_block:last-child {
-    border-bottom: none !important;
+/* Chat title */
+.tmc_chat_title {
+    flex: 1;
+    font-size: 13px;
+    color: var(--SmartThemeBodyColor);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
-/* Uncategorized */
+/* Chat date */
+.tmc_chat_date {
+    font-size: 11px;
+    color: var(--SmartThemeBodyColor);
+    opacity: 0.5;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+/* ========== UNCATEGORIZED ========== */
 .tmc_uncat {
-    border: none;
-    background: transparent;
-    box-shadow: none;
-    margin-top: 12px;
+    margin-top: 8px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    padding-top: 8px;
 }
 
 .tmc_uncat .tmc_header {
-    background: transparent;
-    opacity: 0.6;
-    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    opacity: 0.7;
 }
 
-.tmc_uncat .tmc_header:hover {
-    opacity: 1;
+.tmc_uncat .tmc_content {
+    padding-left: 8px;
+    /* Less indent for uncategorized */
 }
 
-/* Context Menu */
+/* ========== CONTEXT MENU ========== */
 .tmc_ctx {
     position: fixed;
     background: var(--SmartThemeBlurTintColor);
     border: 1px solid var(--SmartThemeBorderColor);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     z-index: 20002;
-    min-width: 180px;
+    min-width: 160px;
     border-radius: 8px;
     overflow: hidden;
     backdrop-filter: blur(10px);
 }
 
 .tmc_ctx_head {
-    padding: 8px 12px;
-    font-size: 11px;
+    padding: 6px 12px;
+    font-size: 10px;
     color: var(--SmartThemeBodyColor);
-    opacity: 0.7;
+    opacity: 0.6;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
     border-bottom: 1px solid var(--SmartThemeBorderColor);
-    background: rgba(0, 0, 0, 0.2);
 }
 
 .tmc_ctx_item {
-    padding: 10px 14px;
+    padding: 8px 12px;
     color: var(--SmartThemeBodyColor);
     cursor: pointer;
     font-size: 13px;
@@ -207,7 +223,6 @@
 
 .tmc_ctx_item:hover {
     background: var(--SmartThemeUpperBarColor);
-    color: var(--SmartThemeQuoteColor);
 }
 
 .tmc_ctx_sep {
@@ -220,23 +235,41 @@
     color: #4cd137;
 }
 
-/* Add Button in Popup Header */
+/* ========== ADD BUTTON ========== */
 .tmc_add_btn {
-    font-size: 16px;
+    font-size: 14px;
     cursor: pointer;
-    margin-left: 8px;
-    opacity: 0.7;
-    transition: all 0.2s;
+    margin-left: 6px;
+    opacity: 0.6;
+    transition: all 0.15s;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 5px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
 }
 
 .tmc_add_btn:hover {
     opacity: 1;
+    background: var(--SmartThemeBlurTintColor);
+}
+
+/* ========== SCROLLBAR ========== */
+#tmc_proxy_root::-webkit-scrollbar {
+    width: 6px;
+}
+
+#tmc_proxy_root::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#tmc_proxy_root::-webkit-scrollbar-thumb {
     background: var(--SmartThemeBorderColor);
-    color: var(--SmartThemeQuoteColor);
+    border-radius: 3px;
+}
+
+#tmc_proxy_root::-webkit-scrollbar-thumb:hover {
+    background: var(--SmartThemeBodyColor);
+    opacity: 0.5;
 }

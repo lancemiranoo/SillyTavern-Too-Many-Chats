@@ -1,9 +1,9 @@
 /**
  * Too Many Chats - SillyTavern Extension
  * Organizes chats per character into collapsible folders
- * v2.0.2 - UI Tweaks: Scroll & Search Bar
+ * v2.1.0 - ChatGPT-Style UI
  * @author chaaruze
- * @version 2.0.1
+ * @version 2.1.0
  */
 
 (function () {
@@ -15,12 +15,11 @@
     const defaultSettings = Object.freeze({
         folders: {},
         characterFolders: {},
-        version: '2.0.2'
+        version: '2.1.0'
     });
 
     let observer = null;
     let syncDebounceTimer = null;
-    let isBuilding = false;
 
     // ========== SETTINGS ==========
 
@@ -32,7 +31,6 @@
             extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
         }
 
-        // Ensure defaults
         for (const key of Object.keys(defaultSettings)) {
             if (!Object.hasOwn(extensionSettings[MODULE_NAME], key)) {
                 extensionSettings[MODULE_NAME][key] = structuredClone(defaultSettings[key]);
@@ -46,7 +44,7 @@
         SillyTavern.getContext().saveSettingsDebounced();
     }
 
-    // ========== ASSETS ==========
+    // ========== HELPERS ==========
 
     function generateId() {
         return 'folder_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -65,6 +63,29 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        try {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+            if (days === 0) return 'Today';
+            if (days === 1) return 'Yesterday';
+            if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'short' });
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } catch {
+            return '';
+        }
+    }
+
+    function extractChatTitle(fileName) {
+        if (!fileName) return 'Untitled';
+        // Remove .jsonl extension and clean up
+        return fileName.replace(/\.jsonl$/i, '').trim() || 'Untitled';
     }
 
     // ========== FOLDER DATA ==========
@@ -126,7 +147,6 @@
         const characterId = getCurrentCharacterId();
         if (!characterId) return;
 
-        // Remove from current folders
         const allFolderIds = settings.characterFolders[characterId] || [];
         for (const fid of allFolderIds) {
             const folder = settings.folders[fid];
@@ -136,14 +156,10 @@
             }
         }
 
-        // Add to target if not uncategorized
         if (targetFolderId && targetFolderId !== 'uncategorized') {
             const folder = settings.folders[targetFolderId];
             if (folder) {
-                // Ensure array exists
                 if (!folder.chats) folder.chats = [];
-                // Allow same chat in multiple folders? No, move assumes specific location.
-                // Logic above removes it from ALL folders, so we enforce single folder.
                 folder.chats.push(fileName);
             }
         }
@@ -171,52 +187,45 @@
 
     function scheduleSync() {
         if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
-        syncDebounceTimer = setTimeout(performSync, 50);
+        // FASTER sync for snappy UI (was 50ms)
+        syncDebounceTimer = setTimeout(performSync, 15);
     }
 
     function performSync() {
-        // We removed isBuilding semaphore because sometimes it got stuck if an error occurred.
-        // It's safer to just run.
-
         try {
-            // Target BOTH popups for robustness
             const popups = [
                 document.querySelector('#shadow_select_chat_popup'),
                 document.querySelector('#select_chat_popup')
             ];
 
-            // Find active one
             const popup = popups.find(p => p && getComputedStyle(p).display !== 'none');
-
             if (!popup) return;
 
-            // 1. Gather all Native Blocks
-            // CRITICAL FIX: SillyTavern uses multiple .select_chat_block_wrapper elements (one per chat).
-            // We must query the POPUP root, not a specific wrapper.
             const nativeBlocks = Array.from(popup.querySelectorAll('.select_chat_block:not(.tmc_proxy_block)'));
 
-            // 2. Extract Data
-            const chatData = nativeBlocks.map(block => ({
-                element: block,
-                fileName: block.getAttribute('file_name') || block.title || block.innerText.split('\n')[0].trim(),
-                html: block.innerHTML
-            })).filter(d => d.fileName);
+            const chatData = nativeBlocks.map(block => {
+                const fileName = block.getAttribute('file_name') || block.title || block.innerText.split('\n')[0].trim();
+                // Try to extract date from the block
+                const dateEl = block.querySelector('.select_chat_block_date, [title*="20"]');
+                const dateStr = dateEl ? dateEl.textContent || dateEl.title : '';
 
-            // 3. Setup Proxy Root
+                return {
+                    element: block,
+                    fileName,
+                    title: extractChatTitle(fileName),
+                    date: formatDate(dateStr)
+                };
+            }).filter(d => d.fileName);
+
             let proxyRoot = popup.querySelector('#tmc_proxy_root');
             if (!proxyRoot) {
                 proxyRoot = document.createElement('div');
                 proxyRoot.id = 'tmc_proxy_root';
 
-                // Find the body container for chat list
                 const body = popup.querySelector('.shadow_select_chat_popup_body') || popup;
-
-                // Insert after any existing header/search elements
-                // The search bar is typically in the header or a separate div
                 const searchBar = popup.querySelector('input[type="search"], input[type="text"], .search_input');
 
                 if (searchBar && searchBar.parentNode) {
-                    // Insert after search bar's container
                     const searchContainer = searchBar.closest('.shadow_select_chat_popup_header') || searchBar.parentNode;
                     if (searchContainer.nextSibling) {
                         searchContainer.parentNode.insertBefore(proxyRoot, searchContainer.nextSibling);
@@ -224,30 +233,22 @@
                         searchContainer.parentNode.appendChild(proxyRoot);
                     }
                 } else {
-                    // Fallback: insert at top of body
                     body.insertBefore(proxyRoot, body.firstChild);
                 }
             }
 
-            // 4. Build Tree
             const newTree = document.createDocumentFragment();
             const characterId = getCurrentCharacterId();
             const settings = getSettings();
 
-            if (!characterId || chatData.length === 0) {
-                // Nothing to show or mismatch
-                // Just clear root if no character, or maybe waiting?
-                if (!characterId) proxyRoot.textContent = 'Select a character to manage folders.';
-                else {
-                    // If character selected but no chats, maybe clean up.
-                }
-                // If we have chats but no characterID (group chat?), we just show them uncategorized?
+            if (!characterId) {
+                proxyRoot.innerHTML = '<div style="padding:12px;opacity:0.6">Select a character</div>';
+                return;
             }
 
-            const folderIds = (characterId && settings.characterFolders[characterId]) || [];
+            const folderIds = settings.characterFolders[characterId] || [];
             const folderContents = {};
 
-            // Create Folders
             folderIds.forEach(fid => {
                 const folder = settings.folders[fid];
                 if (!folder) return;
@@ -256,45 +257,33 @@
                 folderContents[fid] = section.querySelector('.tmc_content');
             });
 
-            // Create Uncategorized
             const uncatSection = createUncategorizedDOM();
             newTree.appendChild(uncatSection);
             folderContents['uncategorized'] = uncatSection.querySelector('.tmc_content');
 
-            // Distribute Chats
             chatData.forEach(chat => {
                 const fid = getFolderForChat(chat.fileName);
-                const container = folderContents[fid] || folderContents['uncategorized']; // Fallback
-
+                const container = folderContents[fid] || folderContents['uncategorized'];
                 const proxy = createProxyBlock(chat);
                 container.appendChild(proxy);
             });
 
-            // Update Counts and Toggle Visibility
             Object.keys(folderContents).forEach(fid => {
                 const container = folderContents[fid];
                 const count = container.children.length;
                 const section = container.closest('.tmc_section');
 
-                // Update badge
                 const badge = section.querySelector('.tmc_count');
                 if (badge) badge.textContent = count;
 
-                // Hide empty Uncategorized if user wants? usually keep it if folder structure exists
-                // We'll hide uncategorized if empty to be clean, unless it's the ONLY thing
                 if (fid === 'uncategorized') {
-                    // Only hide if empty AND we have other folders. 
-                    // If we have no folders, we should probably keep Uncategorized visible or just show nothing?
-                    // Let's hide if empty.
                     section.style.display = count > 0 ? '' : 'none';
                 }
             });
 
-            // 5. Swap
             proxyRoot.innerHTML = '';
             proxyRoot.appendChild(newTree);
 
-            // 6. Add Button
             injectAddButton(popup);
 
         } catch (err) {
@@ -306,12 +295,13 @@
         const section = document.createElement('div');
         section.className = 'tmc_section';
         section.dataset.id = fid;
+        section.dataset.collapsed = folder.collapsed ? 'true' : 'false';
 
         const header = document.createElement('div');
         header.className = 'tmc_header';
         header.innerHTML = `
             <div class="tmc_header_left">
-                <span class="tmc_toggle">${folder.collapsed ? '▶' : '▼'}</span>
+                <span class="tmc_toggle">▼</span>
                 <span class="tmc_icon">📁</span>
                 <span class="tmc_name">${escapeHtml(folder.name)}</span>
                 <span class="tmc_count">0</span>
@@ -322,13 +312,12 @@
             </div>
         `;
 
-        // Click handlers
         header.querySelector('.tmc_header_left').onclick = () => {
             const s = getSettings();
             if (s.folders[fid]) {
                 s.folders[fid].collapsed = !s.folders[fid].collapsed;
-                saveSettings(); // Writes file
-                scheduleSync(); // Re-renders UI
+                saveSettings();
+                scheduleSync();
             }
         };
 
@@ -340,7 +329,7 @@
 
         header.querySelector('.tmc_del').onclick = (e) => {
             e.stopPropagation();
-            if (confirm(`Delete folder "${folder.name}"?`)) deleteFolder(fid);
+            if (confirm(`Delete "${folder.name}"?`)) deleteFolder(fid);
         };
 
         const content = document.createElement('div');
@@ -361,8 +350,8 @@
         header.className = 'tmc_header';
         header.innerHTML = `
             <div class="tmc_header_left">
-                <span class="tmc_icon">📄</span>
-                <span class="tmc_name">Uncategorized</span>
+                <span class="tmc_icon">💬</span>
+                <span class="tmc_name">Your chats</span>
                 <span class="tmc_count">0</span>
             </div>
         `;
@@ -375,19 +364,20 @@
         return section;
     }
 
+    // COMPACT proxy block - just title + date
     function createProxyBlock(chatData) {
         const el = document.createElement('div');
-        el.className = 'select_chat_block tmc_proxy_block';
-        el.innerHTML = chatData.html;
+        el.className = 'tmc_proxy_block';
+
+        // Simple title + date layout
+        el.innerHTML = `
+            <span class="tmc_chat_title">${escapeHtml(chatData.title)}</span>
+            <span class="tmc_chat_date">${chatData.date}</span>
+        `;
         el.title = chatData.fileName;
 
-        // Forward Click
-        el.onclick = (e) => {
-            // Forward the click to the hidden native element
-            chatData.element.click();
-        };
+        el.onclick = () => chatData.element.click();
 
-        // Context Menu
         el.oncontextmenu = (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -435,14 +425,14 @@
         const characterId = getCurrentCharacterId();
         const folderIds = settings.characterFolders[characterId] || [];
 
-        let html = `<div class="tmc_ctx_head">Move to...</div>`;
+        let html = '<div class="tmc_ctx_head">Move to</div>';
         folderIds.forEach(fid => {
             const f = settings.folders[fid];
             html += `<div class="tmc_ctx_item" data-fid="${fid}">📁 ${escapeHtml(f.name)}</div>`;
         });
-        html += `<div class="tmc_ctx_sep"></div>`;
-        html += `<div class="tmc_ctx_item" data-fid="uncategorized">📄 Uncategorized</div>`;
-        html += `<div class="tmc_ctx_item tmc_new">➕ New Folder</div>`;
+        html += '<div class="tmc_ctx_sep"></div>';
+        html += '<div class="tmc_ctx_item" data-fid="uncategorized">💬 Your chats</div>';
+        html += '<div class="tmc_ctx_item tmc_new">➕ New Folder</div>';
 
         menu.innerHTML = html;
         document.body.appendChild(menu);
@@ -452,10 +442,7 @@
             if (!item) return;
             if (item.classList.contains('tmc_new')) {
                 const name = prompt('Folder Name:');
-                if (name) {
-                    createFolder(name);
-                    // ideally we moveChat here too, but simple first
-                }
+                if (name) createFolder(name);
             } else {
                 moveChat(fileName, item.dataset.fid);
             }
@@ -475,12 +462,10 @@
         observer = new MutationObserver((mutations) => {
             let needsSync = false;
             for (const m of mutations) {
-                // If it's a wrapper modification
-                if (m.target.classList.contains('select_chat_block_wrapper')) {
+                if (m.target.classList?.contains('select_chat_block_wrapper')) {
                     needsSync = true;
                     break;
                 }
-                // If ID changes (unlikely) or children of body (popup appearance)
                 if (m.target.id === 'shadow_select_chat_popup' || m.target.id === 'select_chat_popup') {
                     needsSync = true;
                     break;
@@ -500,30 +485,21 @@
     // ========== INIT ==========
 
     function init() {
-        console.log(`[${EXTENSION_NAME}] v2.0.1 Loading...`);
+        console.log(`[${EXTENSION_NAME}] v2.1.0 Loading...`);
         const ctx = SillyTavern.getContext();
 
         ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, scheduleSync);
 
-        // Heartbeat
+        // Faster heartbeat
         setInterval(() => {
             const popup = document.querySelector('#shadow_select_chat_popup') || document.querySelector('#select_chat_popup');
             if (popup && getComputedStyle(popup).display !== 'none') {
-                // Check if proxy exists OR if Native wrapper has items but Proxy is empty?
                 const proxy = popup.querySelector('#tmc_proxy_root');
-                const native = popup.querySelector('.select_chat_block_wrapper');
-
-                // If we have native content but no proxy content, FORCE SYNC
-                if (native && native.children.length > 0) {
-                    // Basic check if we are desynced
-                    const nativeCount = native.querySelectorAll('.select_chat_block:not(.tmc_proxy_block)').length;
-                    const proxyCount = proxy ? proxy.querySelectorAll('.tmc_proxy_block').length : 0;
-                    if (nativeCount !== proxyCount) {
-                        scheduleSync();
-                    }
+                if (!proxy || proxy.children.length === 0) {
+                    scheduleSync();
                 }
             }
-        }, 1000);
+        }, 500);
 
         initObserver();
     }
