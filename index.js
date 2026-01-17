@@ -426,10 +426,30 @@
         }
 
         const btn = document.createElement('div');
-        btn.className = 'tmc_add_btn menu_button';
+        btn.className = 'tmc_add_btn';  // Remove menu_button to avoid conflicts
         btn.innerHTML = '<i class="fa-solid fa-folder-plus"></i> New Folder';
         btn.title = 'Create New Folder';
-        btn.style.cssText = 'display: flex; align-items: center; gap: 4px; cursor: pointer;';
+        // Apply full inline styles to ensure they work regardless of specificity
+        btn.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: 5px !important;
+            padding: 5px 10px !important;
+            margin: 0 5px !important;
+            background: var(--SmartThemeBlurTintColor, rgba(0,0,0,0.3)) !important;
+            border: 1px solid var(--SmartThemeBorderColor, #555) !important;
+            border-radius: 5px !important;
+            color: var(--SmartThemeBodyColor, #fff) !important;
+            font-size: 13px !important;
+            cursor: pointer !important;
+            white-space: nowrap !important;
+        `;
+        btn.onmouseenter = () => {
+            btn.style.background = 'var(--SmartThemeQuoteColor, rgba(100,100,100,0.5))';
+        };
+        btn.onmouseleave = () => {
+            btn.style.background = 'var(--SmartThemeBlurTintColor, rgba(0,0,0,0.3))';
+        };
         btn.onclick = (e) => {
             e.stopPropagation();
             const n = prompt('New Folder Name:');
